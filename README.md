@@ -9,6 +9,15 @@ _This is a Windows plugin for [fman](https://fman.io/), a dual pane file manager
 
 Opens the current directory in a new WezTerm window.
 
+### GoWeztermDualPanes
+
+Opens both fman panes (left and right) in a single WezTerm window with horizontal split panes. The left fman pane will be opened in the left WezTerm pane, and the right fman pane will be opened in the right WezTerm pane.
+
+**Requirements:**
+- Both panes in fman must be open
+- Works with both local and network paths
+- Automatically handles network path mapping for both panes
+
 ### MapNetworkDrive
 
 Use the Command Palette to run the "map_network_drive" command. This command:

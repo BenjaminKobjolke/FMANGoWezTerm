@@ -222,13 +222,116 @@ class GoWezterm(DirectoryPaneCommand):
             logger.log(f"Not a network path, using original command: {cmd}")
             subprocess.call(cmd)
 
+class GoWeztermDualPanes(DirectoryPaneCommand):
+    def __call__(self):
+        # Initialize logger
+        logger = Logger()
+        log_file = logger.get_log_file_path()
+        logger.log("=== New GoWeztermDualPanes execution ===")
+
+        wezterm_path = "C:\\Program Files\\WezTerm\\wezterm-gui.exe"
+
+        # Get both panes from the window
+        panes = self.pane.window.get_panes()
+        if len(panes) < 2:
+            show_alert("This command requires both panes to be open")
+            logger.log("Error: Less than 2 panes available")
+            return
+
+        # Get paths from both panes
+        left_pane_path = as_human_readable(panes[0].get_path())
+        right_pane_path = as_human_readable(panes[1].get_path())
+
+        logger.log(f"Left pane path: {left_pane_path}")
+        logger.log(f"Right pane path: {right_pane_path}")
+
+        # Process both paths (handle network paths if needed)
+        processed_left = self._process_path(left_pane_path, logger)
+        processed_right = self._process_path(right_pane_path, logger)
+
+        # Start WezTerm with the left pane's path
+        logger.log(f"Starting WezTerm with dual panes")
+        logger.log(f"Left pane: {processed_left}")
+        logger.log(f"Right pane: {processed_right}")
+
+        # Create a batch file to handle the dual pane setup without complex escaping
+        temp_batch_file = os.path.join(os.environ.get('TEMP', 'C:\\Temp'), 'fman_wezterm_dual_launcher.bat')
+
+        batch_content = f'''@echo off
+set "WEZTERM={wezterm_path}"
+set "LEFT={processed_left}"
+set "RIGHT={processed_right}"
+
+"%WEZTERM%" start --cwd "%LEFT%" -- cmd /k "wezterm cli split-pane --right -- cmd /k cd /d %RIGHT%"
+'''
+
+        with open(temp_batch_file, 'w') as f:
+            f.write(batch_content)
+
+        logger.log(f"Created batch file: {temp_batch_file}")
+
+        try:
+            # Execute the batch file
+            subprocess.Popen(temp_batch_file, shell=True)
+            logger.log("WezTerm dual pane session started successfully")
+
+            # Wait a moment for the batch file to execute, then delete it
+            import time
+            time.sleep(0.5)
+            try:
+                os.remove(temp_batch_file)
+                logger.log(f"Deleted batch file: {temp_batch_file}")
+            except Exception as cleanup_error:
+                logger.log(f"Could not delete batch file: {str(cleanup_error)}")
+        except Exception as e:
+            logger.log(f"Error starting WezTerm: {str(e)}")
+            show_alert(f"Error starting WezTerm: {str(e)}")
+
+    def _process_path(self, path, logger):
+        """Process a path to handle network paths and return a usable path"""
+        # Check if the path is a network path (starts with \\)
+        if path.startswith('\\\\'):
+            logger.log(f"Processing network path: {path}")
+
+            try:
+                # Check for existing drive mappings
+                net_use_output = subprocess.check_output('net use', shell=True).decode('utf-8')
+
+                # Parse the network path
+                server, share, remaining_path, server_share = parse_network_path(path)
+
+                if server_share:
+                    # Look for existing drive mappings
+                    drive_letter = find_existing_drive_mapping(server_share, net_use_output)
+
+                    if drive_letter:
+                        # Use the existing drive mapping
+                        new_path = f"{drive_letter}{remaining_path}"
+                        logger.log(f"Using existing mapping: {new_path}")
+                        return new_path
+                    else:
+                        # Create a new mapping
+                        free_drives = get_free_drive_letters()
+                        if free_drives:
+                            free_drive = free_drives[0]
+                            result = create_network_mapping(free_drive, server_share)
+                            if result == 0:
+                                new_path = f"{free_drive}{remaining_path}"
+                                logger.log(f"Created new mapping: {new_path}")
+                                return new_path
+            except Exception as e:
+                logger.log(f"Error processing network path: {str(e)}")
+
+        # Return the original path if not a network path or if processing failed
+        return path
+
 class MapNetworkDrive(DirectoryPaneCommand):
     def __call__(self):
         # Initialize logger
         logger = Logger()
         log_file = logger.get_log_file_path()
         logger.log("=== New MapNetworkDrive execution (WezTerm) ===")
-        
+
         current_path = self.pane.get_path()
         human_readable_path = as_human_readable(current_path)
         
@@ -323,5 +426,5 @@ class MapNetworkDrive(DirectoryPaneCommand):
             logger.log("Not a network path")
             show_alert("Not a network path. This command only works with network paths.")
 
-# Export both commands
-__all__ = ['GoWezterm', 'MapNetworkDrive']
+# Export all commands
+__all__ = ['GoWezterm', 'GoWeztermDualPanes', 'MapNetworkDrive']
