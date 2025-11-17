@@ -146,7 +146,7 @@ class GoWezterm(DirectoryPaneCommand):
                         # Launch WezTerm with the new path
                         cmd = f'"{wezterm_path}" start --cwd "{new_path}"'
                         logger.log(f"Launching WezTerm with command: {cmd}")
-                        subprocess.call(cmd)
+                        subprocess.call(cmd, shell=True)
                     else:
                         # No existing mapping found, find a free drive letter and create a new mapping
                         logger.log("No existing drive mapping found, creating a new one")
@@ -180,19 +180,19 @@ class GoWezterm(DirectoryPaneCommand):
                                 # Launch WezTerm with the new path
                                 cmd = f'"{wezterm_path}" start --cwd "{new_path}"'
                                 logger.log(f"Launching WezTerm with command: {cmd}")
-                                subprocess.call(cmd)
+                                subprocess.call(cmd, shell=True)
                             else:
                                 # Mapping failed, fall back to the original behavior
                                 logger.log(f"Failed to create network mapping, falling back to original behavior")
                                 fallback_cmd = f'"{wezterm_path}" start --cwd "{human_readable_path}"'
                                 logger.log(f"Falling back to original command: {fallback_cmd}")
-                                subprocess.call(fallback_cmd)
+                                subprocess.call(fallback_cmd, shell=True)
                         else:
                             # No free drive letters found, fall back to the original behavior
                             logger.log(f"No free drive letters found, falling back to original behavior")
                             fallback_cmd = f'"{wezterm_path}" start --cwd "{human_readable_path}"'
                             logger.log(f"Falling back to original command: {fallback_cmd}")
-                            subprocess.call(fallback_cmd)
+                            subprocess.call(fallback_cmd, shell=True)
                 else:
                     # Couldn't parse the network path, fall back to the batch file approach
                     logger.log("Couldn't parse network path, using pushd approach")
@@ -215,12 +215,12 @@ class GoWezterm(DirectoryPaneCommand):
                 # Log the fallback command
                 fallback_cmd = f'"{wezterm_path}" start --cwd "{human_readable_path}"'
                 logger.log(f"Falling back to original command: {fallback_cmd}")
-                subprocess.call(fallback_cmd)
+                subprocess.call(fallback_cmd, shell=True)
         else:
             # Not a network path, use the original behavior
             cmd = f'"{wezterm_path}" start --cwd "{human_readable_path}"'
             logger.log(f"Not a network path, using original command: {cmd}")
-            subprocess.call(cmd)
+            subprocess.call(cmd, shell=True)
 
 class GoWeztermDualPanes(DirectoryPaneCommand):
     def __call__(self):
