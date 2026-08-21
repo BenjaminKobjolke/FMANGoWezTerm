@@ -79,6 +79,20 @@ def create_network_mapping(drive, server_share):
     result = subprocess.call(map_cmd, shell=True)
     return result
 
+def launch_wezterm(wezterm_path, path, agent, logger):
+    """Start WezTerm at path. If agent is set ("claude"/"pi"), force that
+    agent directly, bypassing the .wezterm.lua choice prompt."""
+    args = [wezterm_path, "start", "--cwd", path]
+    if agent:
+        plugin_dir = os.path.dirname(os.path.abspath(__file__))
+        pdir_bat = os.path.join(plugin_dir, "scripts", "pdir.bat")
+        if os.path.exists(pdir_bat):
+            args += ["--", "C:\\Windows\\System32\\cmd.exe", "/k", f'"{pdir_bat}" && {agent}']
+        else:
+            args += ["--", "C:\\Windows\\System32\\cmd.exe", "/k", f"{agent}"]
+    logger.log(f"Launching WezTerm with args: {args}")
+    subprocess.call(args)
+
 def create_batch_file(path, wezterm_path, log_file):
     """Create a batch file to handle network paths that can't be parsed"""
     temp_batch_file = os.path.join(os.environ.get('TEMP', 'C:\\Temp'), 'fman_wezterm_launcher.bat')
@@ -95,15 +109,14 @@ def create_batch_file(path, wezterm_path, log_file):
 
     return temp_batch_file
 
-class GoWezterm(DirectoryPaneCommand):
-    def __call__(self):
+def go_wezterm(pane, agent):
         # Initialize logger
         logger = Logger()
         log_file = logger.get_log_file_path()
-        logger.log("=== New GoWezterm execution ===")
+        logger.log(f"=== New GoWezterm execution (agent={agent}) ===")
 
         wezterm_path = "C:\\Program Files\\WezTerm\\wezterm-gui.exe"
-        current_path = self.pane.get_path()
+        current_path = pane.get_path()
         human_readable_path = as_human_readable(current_path)
         
         logger.log(f"Original path: {human_readable_path}")
@@ -141,12 +154,10 @@ class GoWezterm(DirectoryPaneCommand):
                         logger.log(f"Setting fman pane to URL: {new_url}")
                         
                         # Set the pane's path to the new URL
-                        self.pane.set_path(new_url)
+                        pane.set_path(new_url)
 
                         # Launch WezTerm with the new path
-                        cmd = f'"{wezterm_path}" start --cwd "{new_path}"'
-                        logger.log(f"Launching WezTerm with command: {cmd}")
-                        subprocess.call(cmd, shell=True)
+                        launch_wezterm(wezterm_path, new_path, agent, logger)
                     else:
                         # No existing mapping found, find a free drive letter and create a new mapping
                         logger.log("No existing drive mapping found, creating a new one")
@@ -175,29 +186,24 @@ class GoWezterm(DirectoryPaneCommand):
                                 logger.log(f"Setting fman pane to URL: {new_url}")
                                 
                                 # Set the pane's path to the new URL
-                                self.pane.set_path(new_url)
+                                pane.set_path(new_url)
 
                                 # Launch WezTerm with the new path
-                                cmd = f'"{wezterm_path}" start --cwd "{new_path}"'
-                                logger.log(f"Launching WezTerm with command: {cmd}")
-                                subprocess.call(cmd, shell=True)
+                                launch_wezterm(wezterm_path, new_path, agent, logger)
                             else:
                                 # Mapping failed, fall back to the original behavior
                                 logger.log(f"Failed to create network mapping, falling back to original behavior")
-                                fallback_cmd = f'"{wezterm_path}" start --cwd "{human_readable_path}"'
-                                logger.log(f"Falling back to original command: {fallback_cmd}")
-                                subprocess.call(fallback_cmd, shell=True)
+                                launch_wezterm(wezterm_path, human_readable_path, agent, logger)
                         else:
                             # No free drive letters found, fall back to the original behavior
                             logger.log(f"No free drive letters found, falling back to original behavior")
-                            fallback_cmd = f'"{wezterm_path}" start --cwd "{human_readable_path}"'
-                            logger.log(f"Falling back to original command: {fallback_cmd}")
-                            subprocess.call(fallback_cmd, shell=True)
+                            launch_wezterm(wezterm_path, human_readable_path, agent, logger)
                 else:
                     # Couldn't parse the network path, fall back to the batch file approach
                     logger.log("Couldn't parse network path, using pushd approach")
 
                     # Create a simple batch file to handle the network path
+                    # ponytail: unparseable-UNC-path edge case keeps the default agent prompt, add agent override if needed
                     temp_batch_file = create_batch_file(human_readable_path, wezterm_path, log_file)
                     logger.log(f"Created batch file: {temp_batch_file}")
                     
@@ -212,15 +218,24 @@ class GoWezterm(DirectoryPaneCommand):
                 logger.log(traceback.format_exc())
                 show_alert(f"Error handling network path: {str(e)}")
 
-                # Log the fallback command
-                fallback_cmd = f'"{wezterm_path}" start --cwd "{human_readable_path}"'
-                logger.log(f"Falling back to original command: {fallback_cmd}")
-                subprocess.call(fallback_cmd, shell=True)
+                # Fall back to launching WezTerm anyway
+                launch_wezterm(wezterm_path, human_readable_path, agent, logger)
         else:
             # Not a network path, use the original behavior
-            cmd = f'"{wezterm_path}" start --cwd "{human_readable_path}"'
-            logger.log(f"Not a network path, using original command: {cmd}")
-            subprocess.call(cmd, shell=True)
+            logger.log("Not a network path, launching WezTerm directly")
+            launch_wezterm(wezterm_path, human_readable_path, agent, logger)
+
+class GoWezterm(DirectoryPaneCommand):
+    def __call__(self):
+        go_wezterm(self.pane, None)
+
+class GoWeztermClaude(DirectoryPaneCommand):
+    def __call__(self):
+        go_wezterm(self.pane, "claude")
+
+class GoWeztermPi(DirectoryPaneCommand):
+    def __call__(self):
+        go_wezterm(self.pane, "pi")
 
 class GoWeztermDualPanes(DirectoryPaneCommand):
     def __call__(self):
@@ -427,4 +442,4 @@ class MapNetworkDrive(DirectoryPaneCommand):
             show_alert("Not a network path. This command only works with network paths.")
 
 # Export all commands
-__all__ = ['GoWezterm', 'GoWeztermDualPanes', 'MapNetworkDrive']
+__all__ = ['GoWezterm', 'GoWeztermClaude', 'GoWeztermPi', 'GoWeztermDualPanes', 'MapNetworkDrive']
