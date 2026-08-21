@@ -1,13 +1,20 @@
 # GoWezterm
 
-_This is a Windows plugin for [fman](https://fman.io/), a dual pane file manager. It provides commands for working with
-[WezTerm](https://wezterm.org/), a powerful cross-platform terminal emulator, and network paths._
+_This is a Windows plugin for [fman](https://fman.io/), a dual pane file manager. It provides commands for working with [WezTerm](https://wezterm.org/), a powerful cross-platform terminal emulator, and network paths._
 
 ## Commands
 
 ### GoWezterm
 
-Opens the current directory in a new WezTerm window.
+Opens the current directory in a new WezTerm window. On start, WezTerm prompts `[C]laude or [P]i:` (using the included `scripts/pdir.bat` and `scripts/pick_agent.bat`).
+
+### GoWeztermClaude
+
+Same as GoWezterm, but launches straight into Claude, skipping the prompt.
+
+### GoWeztermPi
+
+Same as GoWezterm, but launches straight into Pi, skipping the prompt.
 
 ### GoWeztermDualPanes
 
@@ -43,8 +50,37 @@ When using the plugin with network paths (e.g., `\\SERVER\Share\Folder`), the pl
 
 This improves compatibility with applications that don't handle UNC paths well and ensures proper handling of paths with spaces or special characters. Additionally, it keeps both fman and WezTerm in sync by updating the active pane in fman to the new drive letter path.
 
+## Configuration
+
+You can customize WezTerm using your `.wezterm.lua` file. Below is a basic sample configuration that works well with this plugin, including the `default_prog` wiring to `scripts/pdir.bat` and `scripts/pick_agent.bat`.
+
+### Sample `.wezterm.lua`
+
+```lua
+local wezterm = require 'wezterm'
+local config = {}
+
+if wezterm.config_builder then
+  config = wezterm.config_builder()
+end
+
+-- Basic settings
+config.color_scheme = 'AdventureTime'
+config.font = wezterm.font('JetBrains Mono')
+config.font_size = 11.0
+
+-- Scripts live in the plugin repo, not a system path dir
+local scripts_dir = "C:\\Users\\<you>\\AppData\\Roaming\\fman\\Plugins\\User\\FMANGoWezTerm\\go_wezterm\\scripts\\"
+
+config.default_prog = {
+  "C:\\Windows\\System32\\cmd.exe",
+  "/k",
+  scripts_dir .. "pdir.bat && " .. scripts_dir .. "pick_agent.bat",
+}
+
+return config
+```
+
 ## Notes
 
-This plugin assumes that WezTerm executable is located at `C:\Program Files\WezTerm\wezterm-gui.exe`. Please
-report if something goes wrong.
-
+This plugin assumes that WezTerm executable is located at `C:\Program Files\WezTerm\wezterm-gui.exe`. Please report if something goes wrong.
